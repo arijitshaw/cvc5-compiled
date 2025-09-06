@@ -1,0 +1,1 @@
+lib/libcvc5.a filter=lfs diff=lfs merge=lfs -text
