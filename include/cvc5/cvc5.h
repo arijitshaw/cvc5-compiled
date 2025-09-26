@@ -24,6 +24,7 @@
 #include <cvc5/cvc5_types.h>
 
 #include <functional>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <optional>
@@ -1385,6 +1386,20 @@ class CVC5_EXPORT Term
    * @return The exclusive disjunction of this term and the given term.
    */
   Term xorTerm(const Term& t) const;
+
+  /**
+   * Boolean exclusive or over multiple terms.
+   * @param terms A sequence of Boolean terms.
+   * @return The exclusive disjunction of this term and the given terms.
+   */
+  Term xorTerm(const std::vector<Term>& terms) const;
+
+  /**
+   * Boolean exclusive or over multiple terms.
+   * @param terms A sequence of Boolean terms.
+   * @return The exclusive disjunction of this term and the given terms.
+   */
+  Term xorTerm(std::initializer_list<Term> terms) const;
 
   /**
    * Equality.
@@ -5689,8 +5704,30 @@ class CVC5_EXPORT Solver
    * \endverbatim
    *
    * @param term The formula to assert.
-   */
+  */
   void assertFormula(const Term& term) const;
+
+  /**
+   * Assert that the XOR of the given Boolean terms is equal to @p rhs.
+   *
+   * The XOR is asserted using a native XOR clause in the underlying SAT solver
+   * when available (e.g., CaDiCaL). This enables a single XOR constraint such
+   * as `(xor a b (not c)) = true` to be forwarded directly to CaDiCaL.
+   *
+   * @param terms The Boolean terms that form the XOR clause. Each term must be
+   *              well-formed and of Boolean sort.
+   * @param rhs   The right-hand side of the XOR equation.
+   */
+  void assertXorClause(const std::vector<Term>& terms, bool rhs) const;
+
+  /**
+   * Enable or disable verbose logging for native XOR clause assertions.
+   *
+   * When enabled, each XOR clause asserted through the API (either via
+   * `assertXorClause` or Boolean formulas that translate to native XOR clauses)
+   * is printed together with the literals that are sent to the SAT solver.
+   */
+  void setXorAssertionVerbose(bool enabled) const;
 
   /**
    * Check satisfiability.
