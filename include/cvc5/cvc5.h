@@ -6776,8 +6776,24 @@ class CVC5_EXPORT Solver
    * @note Asserts isLogicSet().
    *
    * @return The logic used by the solver.
-   */
+  */
   std::string getLogic() const;
+
+  /**
+   * Determine whether this build was compiled with CaDiCaL native XOR support.
+   *
+   * @return True if the CaDiCaL backend supports native XOR clauses.
+   */
+  bool hasCadicalXorSupport() const;
+
+  /**
+   * Enable or disable forwarding native XOR clauses to the underlying SAT solver.
+   * This is equivalent to setting the :sat-use-native-xor option.
+   *
+   * @param useNative True to use native XOR clauses when available, false to
+   *                  encode XOR via CNF clauses.
+   */
+  void setSatUseNativeXor(bool useNative) const;
 
   /**
    * Set option.
