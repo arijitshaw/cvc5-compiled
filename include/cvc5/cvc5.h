@@ -24,7 +24,6 @@
 #include <cvc5/cvc5_types.h>
 
 #include <functional>
-#include <initializer_list>
 #include <map>
 #include <memory>
 #include <optional>
@@ -1386,20 +1385,6 @@ class CVC5_EXPORT Term
    * @return The exclusive disjunction of this term and the given term.
    */
   Term xorTerm(const Term& t) const;
-
-  /**
-   * Boolean exclusive or over multiple terms.
-   * @param terms A sequence of Boolean terms.
-   * @return The exclusive disjunction of this term and the given terms.
-   */
-  Term xorTerm(const std::vector<Term>& terms) const;
-
-  /**
-   * Boolean exclusive or over multiple terms.
-   * @param terms A sequence of Boolean terms.
-   * @return The exclusive disjunction of this term and the given terms.
-   */
-  Term xorTerm(std::initializer_list<Term> terms) const;
 
   /**
    * Equality.
@@ -4105,6 +4090,17 @@ class CVC5_EXPORT TermManager
    */
   Term mkTerm(Kind kind, const std::vector<Term>& children = {});
   /**
+   * Create a bit-vector XOR term from the given children.
+   *
+   * This is a convenience wrapper around
+   * `TermManager::mkTerm(Kind::BITVECTOR_XOR, children)` that emphasizes the
+   * ability to construct XORs over more than two operands.
+   *
+   * @param children The bit-vector terms to combine with XOR.
+   * @return The bit-vector XOR term.
+   */
+  Term mkBvXor(const std::vector<Term>& children);
+  /**
    * Create n-ary term of given kind from a given operator.
    *
    * Create operators with mkOp().
@@ -5708,26 +5704,28 @@ class CVC5_EXPORT Solver
   void assertFormula(const Term& term) const;
 
   /**
-   * Assert that the XOR of the given Boolean terms is equal to @p rhs.
+   * Assert an XOR clause composed of Boolean literals.
    *
-   * The XOR is asserted using a native XOR clause in the underlying SAT solver
-   * when available (e.g., CaDiCaL). This enables a single XOR constraint such
-   * as `(xor a b (not c)) = true` to be forwarded directly to CaDiCaL.
+   * The clause is interpreted as the parity constraint that an odd number of
+   * the provided literals must evaluate to true. When the underlying SAT solver
+   * natively supports XOR clauses (e.g., CryptoMiniSat), the clause is
+   * forwarded directly without introducing an auxiliary equality literal.
    *
-   * @param terms The Boolean terms that form the XOR clause. Each term must be
-   *              well-formed and of Boolean sort.
-   * @param rhs   The right-hand side of the XOR equation.
+   * Example usage:
+   * \code
+   *   TermManager tm;
+   *   Solver solver(tm);
+   *   Sort boolSort = tm.getBooleanSort();
+   *   Term a = tm.mkVar(boolSort, "a");
+   *   Term b = tm.mkVar(boolSort, "b");
+   *   Term c = tm.mkVar(boolSort, "c");
+   *   Term d = tm.mkVar(boolSort, "d");
+   *   solver.convertAndAssertXor({a, b, c, d});
+   * \endcode
+   *
+   * @param clause The Boolean literals that form the XOR clause.
    */
-  void assertXorClause(const std::vector<Term>& terms, bool rhs) const;
-
-  /**
-   * Enable or disable verbose logging for native XOR clause assertions.
-   *
-   * When enabled, each XOR clause asserted through the API (either via
-   * `assertXorClause` or Boolean formulas that translate to native XOR clauses)
-   * is printed together with the literals that are sent to the SAT solver.
-   */
-  void setXorAssertionVerbose(bool enabled) const;
+  void convertAndAssertXor(const std::vector<Term>& clause) const;
 
   /**
    * Check satisfiability.
@@ -6740,6 +6738,48 @@ class CVC5_EXPORT Solver
   getBooleanAbstraction(const Term& formula) const;
 
   /**
+   * Data structure capturing the Boolean abstraction of a formula in AIG
+   * form.
+   */
+  struct BooleanAbstractionAig
+  {
+    /** Representation of an AND gate in the AIG. */
+    struct AndGate
+    {
+      /** Identifier of the gate output literal (must be even). */
+      uint32_t lhs;
+      /** First input literal. */
+      uint32_t rhs0;
+      /** Second input literal. */
+      uint32_t rhs1;
+    };
+    /** Maximum AIG variable index (1-based). */
+    uint32_t maxVariable = 0;
+    /** Primary input literals (even values). */
+    std::vector<uint32_t> inputs;
+    /** Output literals (may be even or odd). */
+    std::vector<uint32_t> outputs;
+    /** AND gate definitions. */
+    std::vector<AndGate> andGates;
+    /** Mapping from CNF variables to the original SMT terms. */
+    std::unordered_map<uint32_t, Term> variableMap;
+  };
+
+  /**
+   * @warning This function is experimental and may change in future versions.
+   *
+   * Return the Boolean abstraction of the given formula in AIG form. The AIG
+   * uses even numbers to denote positive literals (2 * index) and odd numbers
+   * for complemented edges (2 * index + 1). The index 0 is reserved for the
+   * constant false literal. The accompanying map associates CNF variables
+   * (starting at 1) with the SMT atoms they represent.
+   *
+   * @param formula The Boolean formula to abstract.
+   * @return The AIG representation together with the variable map.
+   */
+  BooleanAbstractionAig getBooleanAbstractionAig(const Term& formula) const;
+
+  /**
    * Push (a) level(s) to the assertion stack.
    *
    * SMT-LIB:
@@ -6813,24 +6853,8 @@ class CVC5_EXPORT Solver
    * @note Asserts isLogicSet().
    *
    * @return The logic used by the solver.
-  */
+   */
   std::string getLogic() const;
-
-  /**
-   * Determine whether this build was compiled with CaDiCaL native XOR support.
-   *
-   * @return True if the CaDiCaL backend supports native XOR clauses.
-   */
-  bool hasCadicalXorSupport() const;
-
-  /**
-   * Enable or disable forwarding native XOR clauses to the underlying SAT solver.
-   * This is equivalent to setting the :sat-use-native-xor option.
-   *
-   * @param useNative True to use native XOR clauses when available, false to
-   *                  encode XOR via CNF clauses.
-   */
-  void setSatUseNativeXor(bool useNative) const;
 
   /**
    * Set option.
